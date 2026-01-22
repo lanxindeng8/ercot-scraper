@@ -1,0 +1,70 @@
+name: Export InfluxDB Data
+
+on:
+  schedule:
+    # Run every Sunday at 00:00 UTC (weekly backup)
+    - cron: '0 0 * * 0'
+  workflow_dispatch:  # Allow manual trigger
+    inputs:
+      days:
+        description: 'Number of days to export'
+        required: false
+        default: '7'
+        type: string
+
+jobs:
+  export-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Export data from InfluxDB
+        env:
+          INFLUXDB_URL: ${{ secrets.INFLUXDB_URL }}
+          INFLUXDB_TOKEN: ${{ secrets.INFLUXDB_TOKEN }}
+          INFLUXDB_ORG: ${{ secrets.INFLUXDB_ORG }}
+          INFLUXDB_BUCKET: ${{ secrets.INFLUXDB_BUCKET }}
+          EXPORT_DAYS: ${{ github.event.inputs.days || '7' }}
+        run: |
+          cd src
+          python export_data.py
+
+      - name: Upload exported data
+        uses: actions/upload-artifact@v4
+        with:
+          name: influxdb-export-${{ github.run_number }}
+          path: src/*.csv
+          retention-days: 90
+
+      - name: Create Release (if scheduled)
+        if: github.event_name == 'schedule'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: export-${{ github.run_number }}
+          name: Weekly Data Export ${{ github.run_number }}
+          body: |
+            Automated weekly data export from InfluxDB
+
+            Export date: ${{ github.event.repository.updated_at }}
+            Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          files: src/*.csv
+          draft: false
+          prerelease: false
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Data export failed at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          echo "Check the logs at: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
