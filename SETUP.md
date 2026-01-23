@@ -177,9 +177,8 @@ Cron examples:
 
 ## Next Steps
 
-- [Usage Guide](./USAGE.md) - How to use the scrapers
-- [Development Guide](./DEVELOPMENT.md) - How to modify the code
-- [FAQ](./FAQ.md) - Frequently asked questions
+- [Usage Guide](./USAGE.md) - How to use and monitor the scrapers
+- [Project Status](./PROJECT-STATUS.md) - Current project status
 
 ## Cost
 
@@ -192,5 +191,4 @@ Cron examples:
 
 For issues or questions:
 - Open an issue on GitHub
-- Check the [FAQ](./FAQ.md)
 - Review the logs in GitHub Actions

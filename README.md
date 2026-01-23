@@ -13,15 +13,15 @@ This project fetches electricity market data from ERCOT APIs and stores it in In
 
 ### Data Sources
 
-- **LMP by Settlement Point** (`lmp_by_settlement_point`)
+- **LMP Node Zone Hub** (`lmp_node_zone_hub`)
   - Real-time Locational Marginal Prices
   - Includes energy, congestion, and loss components
-  - Updated every 5 minutes
+  - Updated every 5 minutes via SCED
 
-- **SPP Day Ahead Hourly** (`spp_day_ahead_hourly`)
+- **SPP Day Ahead Hourly** (`dam_stlmnt_pnt_prices`)
   - Day-Ahead Settlement Point Prices
   - Hourly data for next day
-  - Updated every 5 minutes
+  - Updated daily
 
 ## ✨ Features
 
@@ -89,8 +89,9 @@ ercot-scraper/
 
 ## 📚 Documentation
 
-- [**SETUP.md**](./SETUP.md) - Complete setup and configuration guide
-- [**USAGE.md**](./USAGE.md) - Usage instructions and monitoring guide
+- [**SETUP.md**](./SETUP.md) - Setup and configuration guide
+- [**USAGE.md**](./USAGE.md) - Usage and monitoring guide
+- [**PROJECT-STATUS.md**](./PROJECT-STATUS.md) - Current project status
 
 ## 💰 Cost
 
@@ -130,18 +131,18 @@ Original infrastructure:
 
 ## 📊 Data Schema
 
-### LMP by Settlement Point
+### LMP Node Zone Hub
 ```
 Measurement: lmp_by_settlement_point
 Tags:
-  - settlement_point: string
-  - settlement_point_type: string
+  - settlement_point: string (e.g., HB_HOUSTON, LZ_WEST)
+  - settlement_point_type: string (Hub, Zone, Node)
 Fields:
-  - lmp: float
+  - lmp: float ($/MWh)
   - energy_component: float
   - congestion_component: float
   - loss_component: float
-Time: SCEDTimestamp
+Time: SCEDTimestamp (every ~5 minutes)
 ```
 
 ### SPP Day Ahead Hourly
@@ -151,7 +152,7 @@ Tags:
   - settlement_point: string
   - settlement_point_type: string
 Fields:
-  - settlement_point_price: float
+  - settlement_point_price: float ($/MWh)
 Time: DeliveryDate + HourEnding
 ```
 

@@ -73,7 +73,7 @@ Initializing ERCOT client...
 Requesting new ERCOT API token...
 Successfully obtained ERCOT API token
 Fetching LMP data from ERCOT...
-Fetching page 1 from /np6-788-cd/lmp_by_settlement_point...
+Fetching page 1 from /np6-788-cd/lmp_node_zone_hub...
 Total records: 50000, Total pages: 10, Fetching: 10
 Received 5000 records
 Successfully wrote 5000 LMP points to InfluxDB
@@ -284,5 +284,5 @@ See [SETUP.md](./SETUP.md#troubleshooting) for common issues and solutions.
 
 ## Next Steps
 
-- [Development Guide](./DEVELOPMENT.md) - Modify scrapers or add new data sources
-- [FAQ](./FAQ.md) - Frequently asked questions
+- [Setup Guide](./SETUP.md) - Setup and configuration
+- [Project Status](./PROJECT-STATUS.md) - Current project status
