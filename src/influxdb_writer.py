@@ -2,18 +2,26 @@
 InfluxDB Writer
 
 Handles writing ERCOT data to InfluxDB Cloud.
+Includes rate limiting protection for free tier.
 """
 
 import os
+import time
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 
+# Rate limiting settings for InfluxDB Cloud free tier
+BATCH_SIZE = 5000  # Write in smaller batches
+BATCH_DELAY_SECONDS = 1  # Delay between batches
+MAX_RETRIES = 3  # Max retries on rate limit
+RETRY_DELAY_SECONDS = 60  # Wait time on 429 error
+
 
 class InfluxDBWriter:
-    """Writer for InfluxDB Cloud"""
+    """Writer for InfluxDB Cloud with rate limiting protection"""
 
     def __init__(
         self,
@@ -87,15 +95,47 @@ class InfluxDBWriter:
                 continue
 
         if points:
-            try:
-                self.write_api.write(bucket=self.bucket, org=self.org, record=points)
-                print(f"Successfully wrote {len(points)} LMP points to InfluxDB")
-                return len(points)
-            except Exception as e:
-                print(f"Error writing LMP points to InfluxDB: {e}")
-                raise
+            return self._write_points_with_rate_limit(points, "LMP")
 
         return 0
+
+    def _write_points_with_rate_limit(self, points: List[Point], data_type: str) -> int:
+        """Write points in batches with rate limiting protection"""
+        total_written = 0
+        total_points = len(points)
+
+        # Split into batches
+        for i in range(0, total_points, BATCH_SIZE):
+            batch = points[i:i + BATCH_SIZE]
+            batch_num = (i // BATCH_SIZE) + 1
+            total_batches = (total_points + BATCH_SIZE - 1) // BATCH_SIZE
+
+            # Retry logic for rate limiting
+            for retry in range(MAX_RETRIES):
+                try:
+                    self.write_api.write(bucket=self.bucket, org=self.org, record=batch)
+                    total_written += len(batch)
+                    print(f"Wrote batch {batch_num}/{total_batches}: {len(batch)} {data_type} points")
+                    break
+                except Exception as e:
+                    error_str = str(e)
+                    if "429" in error_str or "too many requests" in error_str.lower():
+                        if retry < MAX_RETRIES - 1:
+                            print(f"Rate limited, waiting {RETRY_DELAY_SECONDS}s before retry {retry + 2}/{MAX_RETRIES}...")
+                            time.sleep(RETRY_DELAY_SECONDS)
+                        else:
+                            print(f"Max retries exceeded. Wrote {total_written}/{total_points} points.")
+                            return total_written
+                    else:
+                        print(f"Error writing {data_type} points: {e}")
+                        raise
+
+            # Delay between batches to avoid rate limiting
+            if i + BATCH_SIZE < total_points:
+                time.sleep(BATCH_DELAY_SECONDS)
+
+        print(f"Successfully wrote {total_written} {data_type} points to InfluxDB")
+        return total_written
 
     def write_spp_day_ahead_data(self, records: List[Dict[str, Any]]) -> int:
         """
@@ -144,13 +184,7 @@ class InfluxDBWriter:
                 continue
 
         if points:
-            try:
-                self.write_api.write(bucket=self.bucket, org=self.org, record=points)
-                print(f"Successfully wrote {len(points)} SPP points to InfluxDB")
-                return len(points)
-            except Exception as e:
-                print(f"Error writing SPP points to InfluxDB: {e}")
-                raise
+            return self._write_points_with_rate_limit(points, "SPP")
 
         return 0
 
