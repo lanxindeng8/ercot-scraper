@@ -21,7 +21,7 @@ class ErcotClient:
 
     # API Constants
     TOKEN_URL = "https://ercotb2c.b2clogin.com/ercotb2c.onmicrosoft.com/B2C_1_PUBAPI-ROPC-FLOW/oauth2/v2.0/token"
-    CLIENT_ID = "e9b8f377-e530-42f1-9988-c35ecba37e6f"
+    CLIENT_ID = "fec253ea-0d06-4272-a5e6-b478baeecd70"
     PUBLIC_BASE_URL = "https://api.ercot.com/api/public-reports"
     ESR_BASE_URL = "https://api.ercot.com/api/esl-reports"
 
