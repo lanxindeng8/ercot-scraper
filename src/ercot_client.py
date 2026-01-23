@@ -26,7 +26,7 @@ class ErcotClient:
     ESR_BASE_URL = "https://api.ercot.com/api/esl-reports"
 
     # Endpoints
-    ENDPOINT_LMP_SETTLEMENT_POINT = "/np6-788-cd/lmp_by_settlement_point"
+    ENDPOINT_LMP_SETTLEMENT_POINT = "/np6-788-cd/lmp_node_zone_hub"
     ENDPOINT_SPP_DAY_AHEAD = "/np4-190-cd/dam_stlmnt_pnt_prices"
 
     # Configuration
