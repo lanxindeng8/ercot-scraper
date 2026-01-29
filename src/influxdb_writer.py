@@ -54,23 +54,23 @@ class InfluxDBWriter:
         """Close the InfluxDB client connection"""
         self.client.close()
 
-    def write_lmp_data(self, records: List[Dict[str, Any]]) -> int:
+    def write_rtm_lmp_data(self, records: List[Dict[str, Any]]) -> int:
         """
-        Write LMP by Settlement Point data to InfluxDB
+        Write Real-Time Market LMP data to InfluxDB
 
         Args:
-            records: List of LMP records from ERCOT API
+            records: List of RTM LMP records from ERCOT API
 
         Returns:
             Number of points written
         """
         if not records:
-            print("No LMP records to write")
+            print("No RTM LMP records to write")
             return 0
 
         # Debug: print first record's keys to see field names
         if records:
-            print(f"DEBUG: First LMP record keys: {list(records[0].keys())}")
+            print(f"DEBUG: First RTM LMP record keys: {list(records[0].keys())}")
 
         points = []
         skipped = 0
@@ -95,7 +95,7 @@ class InfluxDBWriter:
 
                 # Create point
                 point = (
-                    Point("lmp_by_settlement_point")
+                    Point("rtm_lmp")
                     .tag("settlement_point", settlement_point)
                     .tag("settlement_point_type", settlement_point_type)
                     .field("lmp", float(lmp or 0))
@@ -108,13 +108,13 @@ class InfluxDBWriter:
                 points.append(point)
 
             except Exception as e:
-                print(f"Error creating point for LMP record: {e}")
+                print(f"Error creating point for RTM LMP record: {e}")
                 continue
 
-        print(f"LMP: Created {len(points)} points, skipped {skipped} records")
+        print(f"RTM LMP: Created {len(points)} points, skipped {skipped} records")
 
         if points:
-            return self._write_points_with_rate_limit(points, "LMP")
+            return self._write_points_with_rate_limit(points, "RTM_LMP")
 
         return 0
 
@@ -156,24 +156,24 @@ class InfluxDBWriter:
         print(f"Successfully wrote {total_written} {data_type} points to InfluxDB")
         return total_written
 
-    def write_spp_day_ahead_data(self, records: List[Dict[str, Any]]) -> int:
+    def write_dam_lmp_data(self, records: List[Dict[str, Any]]) -> int:
         """
-        Write Day-Ahead Settlement Point Prices to InfluxDB
+        Write Day-Ahead Market LMP data to InfluxDB
 
         Args:
-            records: List of SPP records from ERCOT API
+            records: List of DAM LMP records from ERCOT API
 
         Returns:
             Number of points written
         """
         if not records:
-            print("No SPP records to write")
+            print("No DAM LMP records to write")
             return 0
 
         # Debug: print first record's keys to see field names
         if records:
-            print(f"DEBUG: First SPP record keys: {list(records[0].keys())}")
-            print(f"DEBUG: First SPP record: {records[0]}")
+            print(f"DEBUG: First DAM LMP record keys: {list(records[0].keys())}")
+            print(f"DEBUG: First DAM LMP record: {records[0]}")
 
         points = []
         skipped = 0
@@ -201,23 +201,23 @@ class InfluxDBWriter:
 
                 # Create point
                 point = (
-                    Point("spp_day_ahead_hourly")
+                    Point("dam_lmp")
                     .tag("settlement_point", settlement_point)
                     .tag("settlement_point_type", settlement_point_type)
-                    .field("settlement_point_price", float(price or 0))
+                    .field("lmp", float(price or 0))
                     .time(timestamp)
                 )
 
                 points.append(point)
 
             except Exception as e:
-                print(f"Error creating point for SPP record: {e}")
+                print(f"Error creating point for DAM LMP record: {e}")
                 continue
 
-        print(f"SPP: Created {len(points)} points, skipped {skipped} records")
+        print(f"DAM LMP: Created {len(points)} points, skipped {skipped} records")
 
         if points:
-            return self._write_points_with_rate_limit(points, "SPP")
+            return self._write_points_with_rate_limit(points, "DAM_LMP")
 
         return 0
 
@@ -228,7 +228,7 @@ class InfluxDBWriter:
         Get the last timestamp for a measurement using SQL
 
         Args:
-            measurement: Measurement name (e.g., "lmp_by_settlement_point")
+            measurement: Measurement name (e.g., "rtm_lmp", "dam_lmp")
             timestamp_field: Timestamp field name
 
         Returns:
