@@ -35,33 +35,76 @@ This project fetches electricity market data from ERCOT APIs and stores it in In
 
 ## 🏗️ Architecture
 
+### Option 1: GitHub Actions (Free, but delayed)
 ```
 ┌─────────────────────┐
 │  GitHub Actions     │
-│  (Every 5 minutes)  │
+│  (Every 5 minutes)  │  ← May have delays on free tier
 └──────────┬──────────┘
            │
            ↓
 ┌─────────────────────┐
 │  ERCOT Public API   │
-│  - Authentication   │
-│  - Paginated Data   │
 └──────────┬──────────┘
            │
            ↓
 ┌─────────────────────┐
 │  InfluxDB Cloud     │
-│  - Time Series DB   │
-│  - 30-day Retention │
+└─────────────────────┘
+```
+
+### Option 2: Local Mac (Recommended for reliability)
+```
+┌─────────────────────┐
+│  macOS launchd      │
+│  (Exact 5 minutes)  │  ← Reliable, runs 24/7
+└──────────┬──────────┘
+           │
+           ↓
+┌─────────────────────┐
+│  ERCOT Public API   │
+└──────────┬──────────┘
+           │
+           ↓
+┌─────────────────────┐
+│  InfluxDB Cloud     │
 └─────────────────────┘
 ```
 
 ## 🚀 Quick Start
 
+### Option 1: GitHub Actions (Cloud)
+
 1. **Fork this repository**
 2. **Configure GitHub Secrets** (see [SETUP.md](./SETUP.md))
 3. **Enable GitHub Actions**
 4. Done! Scrapers will run automatically
+
+### Option 2: Local Mac Mini (Recommended)
+
+For reliable 5-minute intervals, run locally on macOS:
+
+```bash
+# 1. Clone the repository
+git clone git@github.com:lanxindeng8/ercot-scraper.git
+cd ercot-scraper
+
+# 2. Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# 3. Configure environment
+cp .env.example .env
+# Edit .env with your InfluxDB credentials
+
+# 4. Install launchd services
+./scripts/install_launchd.sh
+```
+
+This will install two services:
+- **RTM LMP Scraper**: runs every 5 minutes
+- **DAM LMP Scraper**: runs every 15 minutes
 
 For detailed setup instructions, see [**SETUP.md**](./SETUP.md).
 
@@ -71,19 +114,28 @@ For detailed setup instructions, see [**SETUP.md**](./SETUP.md).
 ercot-scraper/
 ├── .github/
 │   └── workflows/
-│       ├── scraper-lmp.yml        # LMP scraper workflow
-│       ├── scraper-spp.yml        # SPP scraper workflow
+│       ├── scraper-rtm-lmp.yml    # RTM LMP scraper (GitHub Actions)
+│       ├── scraper-dam-lmp.yml    # DAM LMP scraper (GitHub Actions)
 │       └── export-data.yml        # Data export workflow
+├── scrapers/
+│   ├── rtm_lmp.py                # RTM LMP scraper
+│   └── dam_lmp.py                # DAM LMP scraper
 ├── src/
 │   ├── ercot_client.py           # ERCOT API client
-│   ├── influxdb_writer.py        # InfluxDB writer
-│   ├── scraper_lmp.py            # LMP scraper script
-│   ├── scraper_spp.py            # SPP scraper script
-│   └── export_data.py            # Data export script
+│   └── influxdb_writer.py        # InfluxDB writer
+├── scripts/                      # Local deployment scripts
+│   ├── run_rtm_scraper.sh        # RTM run script
+│   ├── run_dam_scraper.sh        # DAM run script
+│   ├── install_launchd.sh        # macOS installer
+│   └── uninstall_launchd.sh      # macOS uninstaller
+├── launchd/                      # macOS launchd configs
+│   ├── com.trueflux.rtm-lmp-scraper.plist
+│   └── com.trueflux.dam-lmp-scraper.plist
 ├── README.md                     # This file
 ├── SETUP.md                      # Setup guide
 ├── USAGE.md                      # Usage guide
 ├── requirements.txt              # Python dependencies
+├── .env.example                  # Environment template
 └── .gitignore                    # Git ignore rules
 ```
 
