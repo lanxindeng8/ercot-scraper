@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.trueflux.rtm-lmp-scraper</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>SCRAPER_PATH/scripts/run_rtm_scraper.sh</string>
+    </array>
+
+    <!-- Run every 5 minutes (300 seconds) -->
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <!-- Also run immediately when loaded -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Log output -->
+    <key>StandardOutPath</key>
+    <string>SCRAPER_PATH/logs/rtm_stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>SCRAPER_PATH/logs/rtm_stderr.log</string>
+
+    <!-- Working directory -->
+    <key>WorkingDirectory</key>
+    <string>SCRAPER_PATH</string>
+
+    <!-- Environment variables (add your InfluxDB credentials here) -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>INFLUXDB_URL</key>
+        <string>YOUR_INFLUXDB_URL</string>
+        <key>INFLUXDB_TOKEN</key>
+        <string>YOUR_INFLUXDB_TOKEN</string>
+        <key>INFLUXDB_ORG</key>
+        <string>YOUR_INFLUXDB_ORG</string>
+        <key>INFLUXDB_BUCKET</key>
+        <string>YOUR_INFLUXDB_BUCKET</string>
+    </dict>
+</dict>
+</plist>
