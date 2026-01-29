@@ -1,8 +1,8 @@
 """
 InfluxDB Writer
 
-Handles writing ERCOT data to InfluxDB Cloud.
-Includes rate limiting protection for free tier.
+Handles writing ERCOT data to InfluxDB Cloud Serverless (3.x).
+Uses influxdb3-python for proper compatibility with InfluxDB 3.0.
 """
 
 import os
@@ -10,8 +10,7 @@ import time
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
-from influxdb_client import InfluxDBClient, Point
-from influxdb_client.client.write_api import SYNCHRONOUS
+from influxdb_client_3 import InfluxDBClient3, Point
 
 # Rate limiting settings for InfluxDB Cloud free tier
 BATCH_SIZE = 5000  # Write in smaller batches
@@ -21,31 +20,35 @@ RETRY_DELAY_SECONDS = 60  # Wait time on 429 error
 
 
 class InfluxDBWriter:
-    """Writer for InfluxDB Cloud with rate limiting protection"""
+    """Writer for InfluxDB Cloud Serverless with rate limiting protection"""
 
     def __init__(
         self,
         url: str,
         token: str,
         org: str,
-        bucket: str,
+        database: str,
     ):
         """
         Initialize InfluxDB writer
 
         Args:
-            url: InfluxDB URL
+            url: InfluxDB URL (host)
             token: InfluxDB authentication token
             org: InfluxDB organization
-            bucket: InfluxDB bucket (database) name
+            database: InfluxDB database (bucket) name
         """
         self.url = url
         self.token = token
         self.org = org
-        self.bucket = bucket
+        self.database = database
 
-        self.client = InfluxDBClient(url=url, token=token, org=org)
-        self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
+        self.client = InfluxDBClient3(
+            host=url.replace("https://", "").replace("http://", ""),
+            token=token,
+            org=org,
+            database=database,
+        )
 
     def close(self):
         """Close the InfluxDB client connection"""
@@ -76,7 +79,8 @@ class InfluxDBWriter:
 
                 timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
 
-                # Create point
+                # Create point with tags as regular fields for InfluxDB 3.0
+                # In InfluxDB 3.0, we use Point from influxdb_client_3
                 point = (
                     Point("lmp_by_settlement_point")
                     .tag("settlement_point", record.get("SettlementPoint", ""))
@@ -113,7 +117,7 @@ class InfluxDBWriter:
             # Retry logic for rate limiting
             for retry in range(MAX_RETRIES):
                 try:
-                    self.write_api.write(bucket=self.bucket, org=self.org, record=batch)
+                    self.client.write(record=batch)
                     total_written += len(batch)
                     print(f"Wrote batch {batch_num}/{total_batches}: {len(batch)} {data_type} points")
                     break
@@ -189,10 +193,10 @@ class InfluxDBWriter:
         return 0
 
     def get_last_timestamp(
-        self, measurement: str, timestamp_field: str = "_time"
+        self, measurement: str, timestamp_field: str = "time"
     ) -> Optional[datetime]:
         """
-        Get the last timestamp for a measurement
+        Get the last timestamp for a measurement using SQL
 
         Args:
             measurement: Measurement name (e.g., "lmp_by_settlement_point")
@@ -202,21 +206,22 @@ class InfluxDBWriter:
             Last timestamp or None if no data exists
         """
         query = f'''
-        from(bucket: "{self.bucket}")
-          |> range(start: -30d)
-          |> filter(fn: (r) => r._measurement == "{measurement}")
-          |> keep(columns: ["_time"])
-          |> sort(columns: ["_time"], desc: true)
-          |> limit(n: 1)
+        SELECT time FROM "{measurement}"
+        ORDER BY time DESC
+        LIMIT 1
         '''
 
         try:
-            query_api = self.client.query_api()
-            tables = query_api.query(query, org=self.org)
+            result = self.client.query(query)
 
-            for table in tables:
-                for record in table.records:
-                    return record.get_time()
+            # Convert to pandas DataFrame and get the timestamp
+            df = result.to_pandas()
+            if not df.empty:
+                last_time = df['time'].iloc[0]
+                # Convert to datetime if needed
+                if hasattr(last_time, 'to_pydatetime'):
+                    return last_time.to_pydatetime()
+                return last_time
 
             return None
 
@@ -242,5 +247,5 @@ def create_writer_from_env() -> InfluxDBWriter:
         url=os.environ["INFLUXDB_URL"],
         token=os.environ["INFLUXDB_TOKEN"],
         org=os.environ["INFLUXDB_ORG"],
-        bucket=os.environ.get("INFLUXDB_BUCKET") or os.environ.get("INFLUXDB_DATABASE", "ercot"),
+        database=os.environ.get("INFLUXDB_BUCKET") or os.environ.get("INFLUXDB_DATABASE", "ercot"),
     )
