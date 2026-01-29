@@ -68,27 +68,40 @@ class InfluxDBWriter:
             print("No LMP records to write")
             return 0
 
+        # Debug: print first record's keys to see field names
+        if records:
+            print(f"DEBUG: First LMP record keys: {list(records[0].keys())}")
+
         points = []
+        skipped = 0
 
         for record in records:
             try:
-                # Parse timestamp
-                timestamp_str = record.get("SCEDTimestamp")
+                # Parse timestamp - try both possible field name formats
+                timestamp_str = record.get("SCEDTimestamp") or record.get("scedTimestamp")
                 if not timestamp_str:
+                    skipped += 1
                     continue
 
                 timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
 
-                # Create point with tags as regular fields for InfluxDB 3.0
-                # In InfluxDB 3.0, we use Point from influxdb_client_3
+                # Get field values - try both formats
+                settlement_point = record.get("SettlementPoint") or record.get("settlementPoint") or ""
+                settlement_point_type = record.get("SettlementPointType") or record.get("settlementPointType") or ""
+                lmp = record.get("LMP") or record.get("lmp") or 0
+                energy = record.get("EnergyComponent") or record.get("energyComponent") or 0
+                congestion = record.get("CongestionComponent") or record.get("congestionComponent") or 0
+                loss = record.get("LossComponent") or record.get("lossComponent") or 0
+
+                # Create point
                 point = (
                     Point("lmp_by_settlement_point")
-                    .tag("settlement_point", record.get("SettlementPoint", ""))
-                    .tag("settlement_point_type", record.get("SettlementPointType", ""))
-                    .field("lmp", float(record.get("LMP", 0) or 0))
-                    .field("energy_component", float(record.get("EnergyComponent", 0) or 0))
-                    .field("congestion_component", float(record.get("CongestionComponent", 0) or 0))
-                    .field("loss_component", float(record.get("LossComponent", 0) or 0))
+                    .tag("settlement_point", settlement_point)
+                    .tag("settlement_point_type", settlement_point_type)
+                    .field("lmp", float(lmp or 0))
+                    .field("energy_component", float(energy or 0))
+                    .field("congestion_component", float(congestion or 0))
+                    .field("loss_component", float(loss or 0))
                     .time(timestamp)
                 )
 
@@ -97,6 +110,8 @@ class InfluxDBWriter:
             except Exception as e:
                 print(f"Error creating point for LMP record: {e}")
                 continue
+
+        print(f"LMP: Created {len(points)} points, skipped {skipped} records")
 
         if points:
             return self._write_points_with_rate_limit(points, "LMP")
@@ -155,15 +170,22 @@ class InfluxDBWriter:
             print("No SPP records to write")
             return 0
 
+        # Debug: print first record's keys to see field names
+        if records:
+            print(f"DEBUG: First SPP record keys: {list(records[0].keys())}")
+            print(f"DEBUG: First SPP record: {records[0]}")
+
         points = []
+        skipped = 0
 
         for record in records:
             try:
-                # Parse delivery date and hour
-                delivery_date = record.get("DeliveryDate")
-                hour_ending = record.get("HourEnding")
+                # Parse delivery date and hour - try both possible field name formats
+                delivery_date = record.get("DeliveryDate") or record.get("deliveryDate")
+                hour_ending = record.get("HourEnding") or record.get("hourEnding")
 
                 if not delivery_date or not hour_ending:
+                    skipped += 1
                     continue
 
                 # Construct timestamp (delivery date + hour)
@@ -172,12 +194,17 @@ class InfluxDBWriter:
                 timestamp = datetime.fromisoformat(delivery_date)
                 timestamp = timestamp.replace(hour=hour - 1)  # Hour ending 01:00 means hour 0
 
+                # Get settlement point fields - try both formats
+                settlement_point = record.get("SettlementPoint") or record.get("settlementPoint") or ""
+                settlement_point_type = record.get("SettlementPointType") or record.get("settlementPointType") or ""
+                price = record.get("SettlementPointPrice") or record.get("settlementPointPrice") or 0
+
                 # Create point
                 point = (
                     Point("spp_day_ahead_hourly")
-                    .tag("settlement_point", record.get("SettlementPoint", ""))
-                    .tag("settlement_point_type", record.get("SettlementPointType", ""))
-                    .field("settlement_point_price", float(record.get("SettlementPointPrice", 0) or 0))
+                    .tag("settlement_point", settlement_point)
+                    .tag("settlement_point_type", settlement_point_type)
+                    .field("settlement_point_price", float(price or 0))
                     .time(timestamp)
                 )
 
@@ -186,6 +213,8 @@ class InfluxDBWriter:
             except Exception as e:
                 print(f"Error creating point for SPP record: {e}")
                 continue
+
+        print(f"SPP: Created {len(points)} points, skipped {skipped} records")
 
         if points:
             return self._write_points_with_rate_limit(points, "SPP")
