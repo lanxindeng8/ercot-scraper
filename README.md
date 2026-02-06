@@ -117,12 +117,12 @@ ercot-scraper/
 │       ├── scraper-rtm-lmp.yml    # RTM LMP scraper (GitHub Actions)
 │       ├── scraper-dam-lmp.yml    # DAM LMP scraper (GitHub Actions)
 │       └── export-data.yml        # Data export workflow
-├── scrapers/
-│   ├── rtm_lmp.py                # RTM LMP scraper
-│   └── dam_lmp.py                # DAM LMP scraper
 ├── src/
 │   ├── ercot_client.py           # ERCOT API client
-│   └── influxdb_writer.py        # InfluxDB writer
+│   ├── influxdb_writer.py        # InfluxDB writer
+│   ├── scraper_rtm_lmp.py        # RTM LMP scraper
+│   ├── scraper_dam_lmp.py        # DAM LMP scraper
+│   └── export_data.py            # Data export utility
 ├── scripts/                      # Local deployment scripts
 │   ├── run_rtm_scraper.sh        # RTM run script
 │   ├── run_dam_scraper.sh        # DAM run script
@@ -131,9 +131,11 @@ ercot-scraper/
 ├── launchd/                      # macOS launchd configs
 │   ├── com.trueflux.rtm-lmp-scraper.plist
 │   └── com.trueflux.dam-lmp-scraper.plist
+├── logs/                         # Runtime logs (created on install)
 ├── README.md                     # This file
 ├── SETUP.md                      # Setup guide
 ├── USAGE.md                      # Usage guide
+├── PROJECT-STATUS.md             # Project status
 ├── requirements.txt              # Python dependencies
 ├── .env.example                  # Environment template
 └── .gitignore                    # Git ignore rules

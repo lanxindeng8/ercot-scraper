@@ -1,42 +1,47 @@
-# ERCOT Scraper 项目状态
+# ERCOT Scraper Project Status
 
-**最后更新**: 2026-01-23 05:05 UTC
+**Last Updated**: 2026-02-06
 
 ---
 
-## 📊 项目完成度：100% ✅
+## 📊 Project Status: 100% Complete ✅
 
-### ✅ 全部完成
+### ✅ All Complete
 
-#### 1. 代码迁移
-- ✅ 从AWS Lambda Node.js/TypeScript代码提取完成
-- ✅ 重写为Python 3.11实现
-- ✅ 更新ERCOT API认证端点和CLIENT_ID
-- ✅ 更新API数据端点（lmp_node_zone_hub）
-- ✅ 添加InfluxDB rate limit保护
+#### 1. Code Migration
+- ✅ Migrated from AWS Lambda Node.js/TypeScript
+- ✅ Rewritten in Python 3.11
+- ✅ Updated ERCOT API authentication endpoint and CLIENT_ID
+- ✅ Updated API data endpoints (lmp_node_zone_hub, dam_stlmnt_pnt_prices)
+- ✅ Added InfluxDB rate limit protection
 
-**源代码**:
+**Source Code**:
 ```
 src/
-├── ercot_client.py    - ERCOT API客户端
-├── influxdb_writer.py - InfluxDB写入器（含rate limit保护）
-├── scraper_lmp.py     - LMP数据抓取器
-├── scraper_spp.py     - SPP数据抓取器
-└── export_data.py     - 数据导出工具
+├── ercot_client.py      - ERCOT API client
+├── influxdb_writer.py   - InfluxDB writer (with rate limit protection)
+├── scraper_rtm_lmp.py   - RTM LMP data scraper (real-time, every 5 min)
+├── scraper_dam_lmp.py   - DAM LMP data scraper (day-ahead, every 15 min)
+└── export_data.py       - Data export utility
 ```
 
-#### 2. GitHub仓库
-- ✅ 仓库：https://github.com/lanxindeng8/ercot-scraper
-- ✅ 类型：Public（免费GitHub Actions）
+#### 2. Mac Mini Local Deployment (Recommended)
+- ✅ Deployed on Mac Mini for reliable 5-minute intervals
+- ✅ launchd services configured and running
+- ✅ Logs stored in `logs/` directory
 
-#### 3. GitHub Actions
-- ✅ `scraper-lmp.yml` - LMP数据抓取
-- ✅ `scraper-spp.yml` - SPP数据抓取
-- ✅ `export-data.yml` - 周度数据导出
+#### 3. GitHub Repository
+- ✅ Repository: https://github.com/lanxindeng8/ercot-scraper
+- ✅ Type: Public (free GitHub Actions)
 
-#### 4. GitHub Secrets（8个）
-| Secret | 状态 |
-|--------|------|
+#### 4. GitHub Actions (backup/alternative)
+- ✅ `scraper-rtm-lmp.yml` - RTM LMP scraper
+- ✅ `scraper-dam-lmp.yml` - DAM LMP scraper
+- ✅ `export-data.yml` - Weekly data export
+
+#### 5. GitHub Secrets (8 total)
+| Secret | Status |
+|--------|--------|
 | `ERCOT_API_USERNAME` | ✅ |
 | `ERCOT_API_PASSWORD` | ✅ |
 | `ERCOT_PUBLIC_API_SUBSCRIPTION_KEY` | ✅ |
@@ -46,65 +51,76 @@ src/
 | `INFLUXDB_BUCKET` | ✅ |
 | `INFLUXDB_TOKEN` | ✅ |
 
-#### 5. InfluxDB
-- ✅ 账户：TrueFlux
-- ✅ Bucket：`ercot`
-- ✅ 连接测试成功
-- ✅ 数据写入成功
+#### 6. InfluxDB
+- ✅ Account: TrueFlux
+- ✅ Bucket: `ercot`
+- ✅ Connection tested successfully
+- ✅ Data writing confirmed
 
-#### 6. 首次运行结果
-- ✅ 运行时间：1小时19分钟
-- ✅ 处理记录：**818,556条**
-- ✅ 数据类型：LMP（边际电价）
-
----
-
-## 📈 运行数据
-
-### 最近一次运行
-| 项目 | 值 |
-|------|-----|
-| Workflow | ERCOT LMP Scraper |
-| 状态 | ✅ Success |
-| 运行时间 | 1h 19m |
-| 处理记录 | 818,556条 |
-| 原始数据 | ~2,150,000条 |
-
-### 数据详情
-- **端点**: `/np6-788-cd/lmp_node_zone_hub`
-- **数据类型**: 实时边际电价（LMP）
-- **字段**: lmp, energy_component, congestion_component, loss_component
-- **时间范围**: 约7天数据
+#### 7. Mac Mini Deployment (2026-02-06)
+- ✅ Python venv created
+- ✅ Dependencies installed
+- ✅ launchd services installed
+- ✅ RTM scraper: runs every 5 minutes
+- ✅ DAM scraper: runs every 15 minutes
 
 ---
 
-## 💰 成本
+## 📈 Runtime Data
 
-| 项目 | 之前（AWS） | 现在 |
-|------|-------------|------|
-| 计算 | $8.21/月 | $0 |
-| 存储 | $0.70/月 | $0 |
-| 其他 | $0.40/月 | $0 |
-| **总计** | **$9-11/月** | **$0/月** ✅ |
+### Latest Run (Mac Mini)
+| Item | Value |
+|------|-------|
+| RTM Scraper | Every 5 minutes |
+| DAM Scraper | Every 15 minutes |
+| Status | ✅ Running |
+| RTM Records | 44,649 points |
+| DAM Records | 2,272 points |
 
-**年度节省**: $108-132 💰
+### Data Sources
+| Scraper | Endpoint | Data Type | Frequency |
+|---------|----------|-----------|-----------|
+| RTM LMP | `/np6-788-cd/lmp_node_zone_hub` | Real-time LMP | Every 5 min |
+| DAM LMP | `/np4-190-cd/dam_stlmnt_pnt_prices` | Day-ahead prices | Every 15 min |
 
 ---
 
-## 🗂️ 仓库结构
+## 💰 Cost
+
+| Item | Before (AWS) | Now |
+|------|--------------|-----|
+| Compute | $8.21/month | $0 |
+| Storage | $0.70/month | $0 |
+| Other | $0.40/month | $0 |
+| **Total** | **$9-11/month** | **$0/month** ✅ |
+
+**Annual Savings**: $108-132 💰
+
+---
+
+## 🗂️ Repository Structure
 
 ```
 ercot-scraper/
-├── .github/workflows/    # GitHub Actions
-│   ├── scraper-lmp.yml
-│   ├── scraper-spp.yml
+├── .github/workflows/      # GitHub Actions (backup)
+│   ├── scraper-rtm-lmp.yml
+│   ├── scraper-dam-lmp.yml
 │   └── export-data.yml
-├── src/                  # Python源代码
+├── src/                    # Python source code
 │   ├── ercot_client.py
 │   ├── influxdb_writer.py
-│   ├── scraper_lmp.py
-│   ├── scraper_spp.py
+│   ├── scraper_rtm_lmp.py
+│   ├── scraper_dam_lmp.py
 │   └── export_data.py
+├── scripts/                # Mac deployment scripts
+│   ├── run_rtm_scraper.sh
+│   ├── run_dam_scraper.sh
+│   ├── install_launchd.sh
+│   └── uninstall_launchd.sh
+├── launchd/                # macOS launchd configs
+│   ├── com.trueflux.rtm-lmp-scraper.plist
+│   └── com.trueflux.dam-lmp-scraper.plist
+├── logs/                   # Runtime logs
 ├── README.md
 ├── SETUP.md
 ├── USAGE.md
@@ -116,21 +132,21 @@ ercot-scraper/
 
 ---
 
-## 🔗 链接
+## 🔗 Links
 
-- **GitHub仓库**: https://github.com/lanxindeng8/ercot-scraper
+- **GitHub Repository**: https://github.com/lanxindeng8/ercot-scraper
 - **GitHub Actions**: https://github.com/lanxindeng8/ercot-scraper/actions
 - **InfluxDB Cloud**: https://cloud2.influxdata.com
 
 ---
 
-## 📚 文档
+## 📚 Documentation
 
-- [README.md](./README.md) - 项目概览
-- [SETUP.md](./SETUP.md) - 配置指南
-- [USAGE.md](./USAGE.md) - 使用指南
+- [README.md](./README.md) - Project overview
+- [SETUP.md](./SETUP.md) - Setup guide
+- [USAGE.md](./USAGE.md) - Usage guide
 
 ---
 
-**状态**: 🟢 **运行正常**
-**完成度**: **100%**
+**Status**: 🟢 **Running on Mac Mini**
+**Completion**: **100%**

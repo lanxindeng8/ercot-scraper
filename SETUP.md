@@ -2,22 +2,30 @@
 
 Complete guide to set up and deploy the ERCOT scraper.
 
+## Deployment Options
+
+| Option | Reliability | Cost | Best For |
+|--------|-------------|------|----------|
+| **Mac Mini (Recommended)** | High - exact 5-min intervals | $0 | Production use |
+| GitHub Actions | Medium - may have delays | $0 | Backup/testing |
+
 ## Prerequisites
 
-1. **GitHub Account**
-   - This project uses GitHub Actions (free for public repositories)
-
-2. **InfluxDB Cloud Account**
+1. **InfluxDB Cloud Account**
    - Sign up at [https://cloud2.influxdata.com](https://cloud2.influxdata.com)
    - Free tier includes:
      - Unlimited writes and queries
      - 30-day data retention
      - 10,000 data points per minute
 
-3. **ERCOT API Credentials**
-   - Username and password for ERCOT API
+2. **ERCOT API Credentials**
+   - Email address (username) and password for ERCOT API
    - Public API subscription key
    - ESR API subscription key (optional)
+
+3. **For Mac Mini deployment**
+   - Python 3.9+
+   - macOS with launchd
 
 ## Step 1: Fork or Clone Repository
 
@@ -163,7 +171,7 @@ Cron examples:
 3. **Test locally** (optional):
    ```bash
    # Set environment variables
-   export ERCOT_API_USERNAME="your_username"
+   export ERCOT_API_USERNAME="your_email@example.com"
    export ERCOT_API_PASSWORD="your_password"
    # ... (all other env vars)
 
@@ -172,8 +180,99 @@ Cron examples:
 
    # Run scraper
    cd src
-   python scraper_lmp.py
+   python scraper_rtm_lmp.py
    ```
+
+---
+
+## Mac Mini Setup (Recommended)
+
+For reliable 5-minute intervals, run locally on macOS.
+
+### Step 1: Clone and Setup
+
+```bash
+# Clone the repository
+git clone git@github.com:lanxindeng8/ercot-scraper.git
+cd ercot-scraper
+
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Step 2: Configure Environment
+
+```bash
+# Copy example config
+cp .env.example .env
+
+# Edit with your credentials
+nano .env
+```
+
+Required `.env` values:
+```
+ERCOT_API_USERNAME=your_email@example.com
+ERCOT_API_PASSWORD=your_password
+ERCOT_PUBLIC_API_SUBSCRIPTION_KEY=your_key
+ERCOT_ESR_API_SUBSCRIPTION_KEY=your_key
+INFLUXDB_URL=https://us-east-1-1.aws.cloud2.influxdata.com
+INFLUXDB_TOKEN=your_token
+INFLUXDB_ORG=your_org_id
+INFLUXDB_BUCKET=ercot
+```
+
+**Note**: ERCOT_API_USERNAME must be a full email address, not just a username.
+
+### Step 3: Test Scrapers
+
+```bash
+# Test RTM scraper
+./scripts/run_rtm_scraper.sh
+
+# Test DAM scraper
+./scripts/run_dam_scraper.sh
+```
+
+### Step 4: Install launchd Services
+
+```bash
+./scripts/install_launchd.sh
+```
+
+This installs two services:
+- **RTM LMP Scraper**: runs every 5 minutes
+- **DAM LMP Scraper**: runs every 15 minutes
+
+### Step 5: Verify Services
+
+```bash
+# Check service status
+launchctl list | grep trueflux
+
+# View logs
+tail -f logs/rtm_stdout.log
+tail -f logs/dam_stdout.log
+```
+
+### Managing Services
+
+```bash
+# Stop services
+launchctl unload ~/Library/LaunchAgents/com.trueflux.rtm-lmp-scraper.plist
+launchctl unload ~/Library/LaunchAgents/com.trueflux.dam-lmp-scraper.plist
+
+# Start services
+launchctl load ~/Library/LaunchAgents/com.trueflux.rtm-lmp-scraper.plist
+launchctl load ~/Library/LaunchAgents/com.trueflux.dam-lmp-scraper.plist
+
+# Uninstall completely
+./scripts/uninstall_launchd.sh
+```
+
+---
 
 ## Next Steps
 

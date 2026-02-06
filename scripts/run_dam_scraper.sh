@@ -17,7 +17,7 @@ if [ -f ".env" ]; then
 fi
 
 # Run the scraper
-python -m scrapers.dam_lmp
+cd src && python scraper_dam_lmp.py
 
 # Log completion
 echo "$(date '+%Y-%m-%d %H:%M:%S') - DAM LMP scraper completed" >> logs/dam_scraper.log

@@ -17,7 +17,7 @@ if [ -f ".env" ]; then
 fi
 
 # Run the scraper
-python -m scrapers.rtm_lmp
+cd src && python scraper_rtm_lmp.py
 
 # Log completion
 echo "$(date '+%Y-%m-%d %H:%M:%S') - RTM LMP scraper completed" >> logs/rtm_scraper.log

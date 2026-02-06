@@ -2,27 +2,73 @@
 
 How to use and monitor the ERCOT data scrapers.
 
-## Workflows Overview
+## Deployment Modes
 
-This project includes three GitHub Actions workflows:
+This project supports two deployment modes:
 
-### 1. ERCOT LMP Scraper
-- **File**: `.github/workflows/scraper-lmp.yml`
-- **Schedule**: Every 5 minutes
-- **Data**: Locational Marginal Prices by Settlement Point
-- **Manual trigger**: Yes
+| Mode | Location | Status |
+|------|----------|--------|
+| **Mac Mini (Primary)** | Local launchd | ✅ Running |
+| GitHub Actions (Backup) | Cloud | Available |
 
-### 2. ERCOT SPP Day Ahead Scraper
-- **File**: `.github/workflows/scraper-spp.yml`
-- **Schedule**: Every 5 minutes
-- **Data**: Day-Ahead Settlement Point Prices
-- **Manual trigger**: Yes
+---
 
-### 3. Export InfluxDB Data
-- **File**: `.github/workflows/export-data.yml`
-- **Schedule**: Weekly (Sunday 00:00 UTC)
-- **Purpose**: Backup data to CSV
-- **Manual trigger**: Yes (with custom days parameter)
+## Mac Mini Monitoring (Primary)
+
+### Check Service Status
+
+```bash
+# List running services
+launchctl list | grep trueflux
+
+# Expected output (PID, exit code, service name):
+# 12345  0  com.trueflux.rtm-lmp-scraper
+# 12346  0  com.trueflux.dam-lmp-scraper
+```
+
+### View Logs
+
+```bash
+# RTM scraper logs (real-time)
+tail -f ~/projects/ercot-scraper/logs/rtm_stdout.log
+
+# DAM scraper logs
+tail -f ~/projects/ercot-scraper/logs/dam_stdout.log
+
+# Error logs
+tail -f ~/projects/ercot-scraper/logs/rtm_stderr.log
+tail -f ~/projects/ercot-scraper/logs/dam_stderr.log
+```
+
+### Service Schedule
+
+| Scraper | Frequency | Data |
+|---------|-----------|------|
+| RTM LMP | Every 5 minutes | Real-time LMP prices |
+| DAM LMP | Every 15 minutes | Day-ahead prices |
+
+### Restart Services
+
+```bash
+# Reload after config changes
+launchctl unload ~/Library/LaunchAgents/com.trueflux.rtm-lmp-scraper.plist
+launchctl load ~/Library/LaunchAgents/com.trueflux.rtm-lmp-scraper.plist
+
+launchctl unload ~/Library/LaunchAgents/com.trueflux.dam-lmp-scraper.plist
+launchctl load ~/Library/LaunchAgents/com.trueflux.dam-lmp-scraper.plist
+```
+
+---
+
+## GitHub Actions (Backup)
+
+### Workflows Overview
+
+| Workflow | File | Schedule | Data |
+|----------|------|----------|------|
+| RTM LMP Scraper | `scraper-rtm-lmp.yml` | Every 5 min | Real-time LMP |
+| DAM LMP Scraper | `scraper-dam-lmp.yml` | Every 15 min | Day-ahead prices |
+| Export Data | `export-data.yml` | Weekly | CSV backup |
 
 ## Manual Workflow Execution
 
@@ -66,28 +112,31 @@ This project includes three GitHub Actions workflows:
 
 ### Common Log Messages
 
-**Success**:
+**Success** (RTM):
 ```
-Starting LMP scraper at 2026-01-22T10:45:00Z
+Starting RTM LMP scraper at 2026-02-06T19:30:19
 Initializing ERCOT client...
+Initializing InfluxDB writer...
+Determining start date...
+Found last timestamp: 2026-02-06T10:05:17
+Fetching RTM LMP data from ERCOT...
+Fetching page 1 from /np6-788-cd/lmp_node_zone_hub...
 Requesting new ERCOT API token...
 Successfully obtained ERCOT API token
-Fetching LMP data from ERCOT...
-Fetching page 1 from /np6-788-cd/lmp_node_zone_hub...
-Total records: 50000, Total pages: 10, Fetching: 10
-Received 5000 records
-Successfully wrote 5000 LMP points to InfluxDB
-Completed! Total records processed: 50000
+Total records: 44649, Total pages: 1, Fetching: 1
+Received 44649 records
+Successfully wrote 44649 RTM_LMP points to InfluxDB
+Completed! Total records processed: 44649
 ```
 
 **Rate Limited** (normal, will retry):
 ```
-Rate limited, retrying in 1.0s... (attempt 1/3)
+Rate limited, waiting 60s before retry 2/3...
 ```
 
 **Error** (needs attention):
 ```
-Error in LMP scraper: Authentication failed
+Error in RTM LMP scraper: Failed to obtain ERCOT API token
 ```
 
 ## Querying Data from InfluxDB
@@ -115,11 +164,11 @@ from(bucket: "ercot")
   |> mean()
 ```
 
-Example: Get SPP by settlement point
+Example: Get DAM prices by settlement point
 ```flux
 from(bucket: "ercot")
   |> range(start: -7d)
-  |> filter(fn: (r) => r._measurement == "spp_day_ahead_hourly")
+  |> filter(fn: (r) => r._measurement == "dam_lmp")
   |> filter(fn: (r) => r.settlement_point == "HB_HOUSTON")
   |> filter(fn: (r) => r._field == "settlement_point_price")
 ```
@@ -157,14 +206,32 @@ CSV columns:
 
 ## Pausing/Resuming Scrapers
 
-### Temporarily Disable a Workflow
+### Mac Mini (launchd)
+
+```bash
+# Stop RTM scraper
+launchctl unload ~/Library/LaunchAgents/com.trueflux.rtm-lmp-scraper.plist
+
+# Stop DAM scraper
+launchctl unload ~/Library/LaunchAgents/com.trueflux.dam-lmp-scraper.plist
+
+# Resume RTM scraper
+launchctl load ~/Library/LaunchAgents/com.trueflux.rtm-lmp-scraper.plist
+
+# Resume DAM scraper
+launchctl load ~/Library/LaunchAgents/com.trueflux.dam-lmp-scraper.plist
+```
+
+### GitHub Actions
+
+#### Temporarily Disable a Workflow
 
 1. Go to "Actions" tab
 2. Select the workflow
 3. Click "..." (three dots)
 4. Click "Disable workflow"
 
-### Re-enable a Workflow
+#### Re-enable a Workflow
 
 1. Go to "Actions" tab
 2. Select the disabled workflow
