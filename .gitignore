@@ -55,3 +55,4 @@ htmlcov/
 *.json.bak
 data/
 exports/
+historical_data/
