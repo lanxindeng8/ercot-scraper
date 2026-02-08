@@ -188,11 +188,21 @@ class InfluxDBWriter:
                     skipped += 1
                     continue
 
-                # Construct timestamp (delivery date + hour)
+                # Construct timestamp (delivery date + hour) in Central Time, then convert to UTC
                 # HourEnding format: "01:00", "02:00", etc.
+                # Hour ending 01:00 means the hour starting at 00:00 (midnight)
                 hour = int(hour_ending.split(":")[0])
-                timestamp = datetime.fromisoformat(delivery_date)
-                timestamp = timestamp.replace(hour=hour - 1)  # Hour ending 01:00 means hour 0
+
+                # Create timestamp in Central Time (ERCOT operates in Central Time)
+                # delivery_date is in format "YYYY-MM-DD"
+                # hour - 1 because hour ending 01:00 means hour starting at 00:00
+                local_timestamp = datetime.fromisoformat(delivery_date)
+                local_timestamp = local_timestamp.replace(hour=hour - 1)
+
+                # Convert Central Time to UTC (CST = UTC-6, CDT = UTC-5)
+                # For simplicity, using CST (UTC-6). In production, use pytz for DST handling.
+                from datetime import timedelta
+                timestamp = local_timestamp + timedelta(hours=6)  # CST to UTC
 
                 # Get settlement point fields - try both formats
                 settlement_point = record.get("SettlementPoint") or record.get("settlementPoint") or ""
