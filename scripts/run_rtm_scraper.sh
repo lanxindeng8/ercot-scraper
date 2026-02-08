@@ -1,6 +1,6 @@
 #!/bin/bash
-# RTM LMP Real-Time Scraper - runs every 5 minutes via launchd
-# Uses CDR (Current Day Reports) HTML scraping for near real-time data
+# RTM LMP Scraper - runs every 5 minutes via launchd
+# Runs both API scraper (for historical backfill) and CDR scraper (for real-time)
 
 # Change to project directory
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -24,8 +24,13 @@ fi
 # Ensure logs directory exists
 mkdir -p "$PROJECT_DIR/logs"
 
-# Run the real-time CDR scraper (provides data within 5 minutes vs 6 hour delay from API)
-cd src && "$PROJECT_DIR/venv/bin/python" scraper_rtm_lmp_realtime.py
+# Run API scraper first (backfills historical data with ~6 hour delay)
+echo "Running API scraper for historical backfill..."
+cd src && "$PROJECT_DIR/venv/bin/python" scraper_rtm_lmp.py
+
+# Run CDR scraper (real-time data within 5 minutes)
+echo "Running CDR scraper for real-time data..."
+cd "$PROJECT_DIR/src" && "$PROJECT_DIR/venv/bin/python" scraper_rtm_lmp_realtime.py
 
 # Log completion
 echo "$(date '+%Y-%m-%d %H:%M:%S') - RTM LMP scraper completed" >> "$PROJECT_DIR/logs/rtm_scraper.log"
