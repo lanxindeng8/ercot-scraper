@@ -55,8 +55,8 @@ def main():
         print(f"CST timestamp: {cst_timestamp}")
         print(f"UTC timestamp: {utc_timestamp}")
 
-        # Check if this data is newer than what we have
-        last_timestamp = influxdb.get_last_timestamp("rtm_lmp")
+        # Check if this data is newer than what we have in rtm_lmp_realtime
+        last_timestamp = influxdb.get_last_timestamp("rtm_lmp_realtime")
         if last_timestamp:
             # Make last_timestamp timezone-aware if it isn't
             if last_timestamp.tzinfo is None:
@@ -79,15 +79,11 @@ def main():
                 "SCEDTimestamp": utc_timestamp.strftime("%Y-%m-%dT%H:%M:%S"),
                 "SettlementPoint": record["settlementPoint"],
                 "LMP": record["lmp"],
-                # CDR doesn't provide component breakdown, set to 0
-                "EnergyComponent": 0,
-                "CongestionComponent": 0,
-                "LossComponent": 0,
             })
 
-        # Write to InfluxDB
-        points_written = influxdb.write_rtm_lmp_data(influx_records)
-        print(f"Wrote {points_written} points to InfluxDB")
+        # Write to rtm_lmp_realtime measurement (CDR data)
+        points_written = influxdb.write_rtm_lmp_realtime(influx_records)
+        print(f"Wrote {points_written} points to rtm_lmp_realtime")
 
         # Close connections
         cdr.close()

@@ -13,10 +13,11 @@ from typing import List, Dict, Any, Optional
 from influxdb_client_3 import InfluxDBClient3, Point
 
 # Rate limiting settings for InfluxDB Cloud free tier
-BATCH_SIZE = 5000  # Write in smaller batches
-BATCH_DELAY_SECONDS = 1  # Delay between batches
-MAX_RETRIES = 3  # Max retries on rate limit
-RETRY_DELAY_SECONDS = 60  # Wait time on 429 error
+# Free tier has strict limits: ~5MB/5min write quota
+BATCH_SIZE = 1000  # Write in smaller batches
+BATCH_DELAY_SECONDS = 5  # Delay between batches
+MAX_RETRIES = 5  # Max retries on rate limit
+RETRY_DELAY_SECONDS = 120  # Base wait time on 429 error (will increase with backoff)
 
 
 class InfluxDBWriter:
@@ -54,12 +55,13 @@ class InfluxDBWriter:
         """Close the InfluxDB client connection"""
         self.client.close()
 
-    def write_rtm_lmp_data(self, records: List[Dict[str, Any]]) -> int:
+    def write_rtm_lmp_data(self, records: List[Dict[str, Any]], measurement: str = "rtm_lmp_api") -> int:
         """
-        Write Real-Time Market LMP data to InfluxDB
+        Write Real-Time Market LMP data to InfluxDB (API data).
 
         Args:
             records: List of RTM LMP records from ERCOT API
+            measurement: Target measurement name (default: rtm_lmp_api)
 
         Returns:
             Number of points written
@@ -85,9 +87,13 @@ class InfluxDBWriter:
 
                 timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
 
+                # Floor timestamp to 5-minute interval for clean data
+                timestamp = timestamp.replace(second=0, microsecond=0)
+                minute = (timestamp.minute // 5) * 5
+                timestamp = timestamp.replace(minute=minute)
+
                 # Get field values - try both formats
                 settlement_point = record.get("SettlementPoint") or record.get("settlementPoint") or ""
-                settlement_point_type = record.get("SettlementPointType") or record.get("settlementPointType") or ""
                 lmp = record.get("LMP") or record.get("lmp") or 0
                 energy = record.get("EnergyComponent") or record.get("energyComponent") or 0
                 congestion = record.get("CongestionComponent") or record.get("congestionComponent") or 0
@@ -95,9 +101,8 @@ class InfluxDBWriter:
 
                 # Create point
                 point = (
-                    Point("rtm_lmp")
+                    Point(measurement)
                     .tag("settlement_point", settlement_point)
-                    .tag("settlement_point_type", settlement_point_type)
                     .field("lmp", float(lmp or 0))
                     .field("energy_component", float(energy or 0))
                     .field("congestion_component", float(congestion or 0))
@@ -118,8 +123,65 @@ class InfluxDBWriter:
 
         return 0
 
+    def write_rtm_lmp_realtime(self, records: List[Dict[str, Any]]) -> int:
+        """
+        Write Real-Time Market LMP data from CDR (real-time) to InfluxDB.
+
+        Args:
+            records: List of RTM LMP records from CDR scraper
+
+        Returns:
+            Number of points written
+        """
+        if not records:
+            print("No RTM LMP realtime records to write")
+            return 0
+
+        points = []
+        skipped = 0
+
+        for record in records:
+            try:
+                # Parse timestamp
+                timestamp_str = record.get("SCEDTimestamp") or record.get("scedTimestamp")
+                if not timestamp_str:
+                    skipped += 1
+                    continue
+
+                timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+
+                # Floor timestamp to 5-minute interval
+                timestamp = timestamp.replace(second=0, microsecond=0)
+                minute = (timestamp.minute // 5) * 5
+                timestamp = timestamp.replace(minute=minute)
+
+                # Get field values
+                settlement_point = record.get("SettlementPoint") or record.get("settlementPoint") or ""
+                lmp = record.get("LMP") or record.get("lmp") or 0
+
+                # Create point for rtm_lmp_realtime measurement
+                point = (
+                    Point("rtm_lmp_realtime")
+                    .tag("settlement_point", settlement_point)
+                    .field("lmp", float(lmp or 0))
+                    .time(timestamp)
+                )
+
+                points.append(point)
+
+            except Exception as e:
+                print(f"Error creating point for RTM LMP realtime record: {e}")
+                continue
+
+        print(f"RTM LMP Realtime: Created {len(points)} points, skipped {skipped} records")
+
+        if points:
+            return self._write_points_with_rate_limit(points, "RTM_LMP_REALTIME")
+
+        return 0
+
     def _write_points_with_rate_limit(self, points: List[Point], data_type: str) -> int:
-        """Write points in batches with rate limiting protection"""
+        """Write points in batches with rate limiting protection and exponential backoff"""
         total_written = 0
         total_points = len(points)
 
@@ -129,7 +191,8 @@ class InfluxDBWriter:
             batch_num = (i // BATCH_SIZE) + 1
             total_batches = (total_points + BATCH_SIZE - 1) // BATCH_SIZE
 
-            # Retry logic for rate limiting
+            # Retry logic with exponential backoff
+            delay = RETRY_DELAY_SECONDS
             for retry in range(MAX_RETRIES):
                 try:
                     self.client.write(record=batch)
@@ -140,10 +203,11 @@ class InfluxDBWriter:
                     error_str = str(e)
                     if "429" in error_str or "too many requests" in error_str.lower():
                         if retry < MAX_RETRIES - 1:
-                            print(f"Rate limited, waiting {RETRY_DELAY_SECONDS}s before retry {retry + 2}/{MAX_RETRIES}...")
-                            time.sleep(RETRY_DELAY_SECONDS)
+                            print(f"Rate limited, waiting {delay}s before retry {retry + 2}/{MAX_RETRIES}...")
+                            time.sleep(delay)
+                            delay = min(delay * 2, 600)  # Exponential backoff up to 10 min
                         else:
-                            print(f"Max retries exceeded. Wrote {total_written}/{total_points} points.")
+                            print(f"Max retries exceeded for batch {batch_num}. Wrote {total_written}/{total_points} points.")
                             return total_written
                     else:
                         print(f"Error writing {data_type} points: {e}")
