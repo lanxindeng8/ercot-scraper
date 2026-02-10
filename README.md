@@ -38,9 +38,10 @@ ercot-scraper/
 │   ├── ercot_client.py        # ERCOT API client
 │   ├── influxdb_writer.py     # InfluxDB writer
 │   ├── sqlite_archive.py      # SQLite writer (primary)
-│   ├── scraper_rtm_lmp.py     # RTM scraper
-│   ├── scraper_dam_lmp.py     # DAM scraper
-│   └── cdr_scraper.py         # CDR real-time scraper
+│   ├── scraper_rtm_lmp.py          # RTM API scraper (~6h delay)
+│   ├── scraper_rtm_lmp_realtime.py # RTM CDR scraper (~5min delay)
+│   ├── scraper_dam_lmp.py          # DAM scraper
+│   └── cdr_scraper.py              # CDR HTML parser
 ├── scripts/
 │   ├── run_rtm_scraper.sh     # RTM launcher
 │   ├── run_dam_scraper.sh     # DAM launcher
@@ -78,10 +79,10 @@ cp .env.example .env
 
 ## launchd Services
 
-| Service | Schedule |
-|---------|----------|
-| `com.trueflux.rtm-lmp-scraper` | Every 5 minutes |
-| `com.trueflux.dam-lmp-scraper` | Every 15 minutes |
+| Service | Schedule | Description |
+|---------|----------|-------------|
+| `com.trueflux.rtm-lmp-scraper` | Every 5 min | Runs API scraper (backfill) + CDR scraper (real-time) |
+| `com.trueflux.dam-lmp-scraper` | Every 15 min | Day-ahead market prices |
 
 ### Commands
 
@@ -101,7 +102,7 @@ launchctl load ~/Library/LaunchAgents/com.trueflux.rtm-lmp-scraper.plist
 ## SQLite Schema
 
 ```sql
--- RTM LMP (5-min intervals)
+-- RTM LMP from API (finalized, ~6h delay)
 CREATE TABLE rtm_lmp_api (
     time DATETIME NOT NULL,
     settlement_point TEXT NOT NULL,
@@ -109,6 +110,14 @@ CREATE TABLE rtm_lmp_api (
     energy_component REAL,
     congestion_component REAL,
     loss_component REAL,
+    PRIMARY KEY (time, settlement_point)
+);
+
+-- RTM LMP from CDR (real-time, ~5min delay)
+CREATE TABLE rtm_lmp_cdr (
+    time DATETIME NOT NULL,
+    settlement_point TEXT NOT NULL,
+    lmp REAL NOT NULL,
     PRIMARY KEY (time, settlement_point)
 );
 
