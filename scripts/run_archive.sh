@@ -1,5 +1,5 @@
 #!/bin/bash
-# Archive ERCOT data to SQLite - runs daily at 3 AM via launchd
+# Archive ERCOT data to SQLite - runs daily at 1 AM via launchd
 
 # Change to project directory
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -19,7 +19,7 @@ fi
 # Ensure logs directory exists
 mkdir -p "$PROJECT_DIR/logs"
 
-# Run archive script
+# Run archive script (pass all arguments, e.g., --days-ago 1)
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Starting archive to SQLite..."
-$PYTHON scripts/archive_to_sqlite.py
+$PYTHON scripts/archive_to_sqlite.py "$@"
 echo "$(date '+%Y-%m-%d %H:%M:%S') - Archive completed"
