@@ -82,7 +82,7 @@ cp .env.example .env
 | Service | Schedule | Description |
 |---------|----------|-------------|
 | `com.trueflux.rtm-lmp-scraper` | Every 5 min | Runs API scraper (backfill) + CDR scraper (real-time) |
-| `com.trueflux.dam-lmp-scraper` | Every 15 min | Day-ahead market prices |
+| `com.trueflux.dam-lmp-scraper` | Daily 3 PM | Day-ahead market prices (published ~1-2 PM) |
 
 ### Commands
 

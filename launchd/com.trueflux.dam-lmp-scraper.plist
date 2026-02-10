@@ -11,9 +11,14 @@
         <string>SCRAPER_PATH/scripts/run_dam_scraper.sh</string>
     </array>
 
-    <!-- Run every 15 minutes (900 seconds) -->
-    <key>StartInterval</key>
-    <integer>900</integer>
+    <!-- Run daily at 3:00 PM (DAM prices published ~1-2 PM Central) -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>15</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
 
     <!-- Also run immediately when loaded -->
     <key>RunAtLoad</key>
