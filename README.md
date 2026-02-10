@@ -1,255 +1,149 @@
 # ERCOT Data Scraper
 
-[![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-Automated-blue?logo=github-actions)](https://github.com/features/actions)
-[![Python 3.11](https://img.shields.io/badge/Python-3.11-blue?logo=python)](https://www.python.org/)
-[![InfluxDB Cloud](https://img.shields.io/badge/InfluxDB-Cloud-blue?logo=influxdb)](https://www.influxdata.com/products/influxdb-cloud/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+Automated ERCOT electricity market data scraper with dual storage (SQLite + InfluxDB).
 
-Automated ERCOT (Electric Reliability Council of Texas) data scraper using GitHub Actions and InfluxDB Cloud.
+## Architecture
 
-## 🎯 Overview
-
-This project fetches electricity market data from ERCOT APIs and stores it in InfluxDB Cloud for analysis and monitoring. It runs completely free using GitHub Actions and InfluxDB Cloud's free tier.
-
-### Data Sources
-
-- **LMP Node Zone Hub** (`lmp_node_zone_hub`)
-  - Real-time Locational Marginal Prices
-  - Includes energy, congestion, and loss components
-  - Updated every 5 minutes via SCED
-
-- **SPP Day Ahead Hourly** (`dam_stlmnt_pnt_prices`)
-  - Day-Ahead Settlement Point Prices
-  - Hourly data for next day
-  - Updated daily
-
-## ✨ Features
-
-- ✅ **Automated data collection** every 5 minutes via GitHub Actions
-- ✅ **Multiple scraper workflows** for different data sources
-- ✅ **Data stored in InfluxDB Cloud** (free tier, 30-day retention)
-- ✅ **Weekly automated backups** to CSV via GitHub Releases
-- ✅ **Smart incremental fetching** - only fetches new data
-- ✅ **Rate limit handling** with exponential backoff
-- ✅ **100% free** using public repository and free cloud services
-
-## 🏗️ Architecture
-
-### Option 1: GitHub Actions (Free, but delayed)
 ```
-┌─────────────────────┐
-│  GitHub Actions     │
-│  (Every 5 minutes)  │  ← May have delays on free tier
-└──────────┬──────────┘
-           │
-           ↓
-┌─────────────────────┐
-│  ERCOT Public API   │
-└──────────┬──────────┘
-           │
-           ↓
-┌─────────────────────┐
-│  InfluxDB Cloud     │
-└─────────────────────┘
+ERCOT API → Scraper → SQLite (all data, primary storage)
+                   ↘
+                     InfluxDB Cloud (15 settlement points, for frontend)
 ```
 
-### Option 2: Local Mac (Recommended for reliability)
+### Data Flow
+
+| Destination | Settlement Points | Purpose |
+|-------------|-------------------|---------|
+| **SQLite** | All (~1,000+) | Primary storage, historical analysis |
+| **InfluxDB** | 15 (Hubs + Load Zones) | Frontend (ercot-viewer) |
+
+### InfluxDB Settlement Points
+
+**Hubs:** HB_BUSAVG, HB_HOUSTON, HB_HUBAVG, HB_NORTH, HB_PAN, HB_SOUTH, HB_WEST
+
+**Load Zones:** LZ_AEN, LZ_CPS, LZ_HOUSTON, LZ_LCRA, LZ_NORTH, LZ_RAYBN, LZ_SOUTH, LZ_WEST
+
+## Data Sources
+
+| Scraper | API Endpoint | Frequency | Data |
+|---------|--------------|-----------|------|
+| RTM LMP | `/np6-788-cd/lmp_node_zone_hub` | Every 5 min | Real-time prices |
+| DAM LMP | `/np4-190-cd/dam_stlmnt_pnt_prices` | Every 15 min | Day-ahead prices |
+
+## Repository Structure
+
 ```
-┌─────────────────────┐
-│  macOS launchd      │
-│  (Exact 5 minutes)  │  ← Reliable, runs 24/7
-└──────────┬──────────┘
-           │
-           ↓
-┌─────────────────────┐
-│  ERCOT Public API   │
-└──────────┬──────────┘
-           │
-           ↓
-┌─────────────────────┐
-│  InfluxDB Cloud     │
-└─────────────────────┘
+ercot-scraper/
+├── src/
+│   ├── ercot_client.py        # ERCOT API client
+│   ├── influxdb_writer.py     # InfluxDB writer
+│   ├── sqlite_archive.py      # SQLite writer (primary)
+│   ├── scraper_rtm_lmp.py     # RTM scraper
+│   ├── scraper_dam_lmp.py     # DAM scraper
+│   └── cdr_scraper.py         # CDR real-time scraper
+├── scripts/
+│   ├── run_rtm_scraper.sh     # RTM launcher
+│   ├── run_dam_scraper.sh     # DAM launcher
+│   ├── backfill_rtm_api.py    # Manual backfill
+│   ├── download_historical.py # Download historical data
+│   └── fetch_dam_to_csv.py    # Export to CSV
+├── historical_data/           # Historical data files
+│   ├── processed/             # Processed CSV files
+│   └── raw/                   # Raw ERCOT zip files
+├── data/
+│   └── ercot_archive.db       # SQLite database
+├── logs/                      # Runtime logs
+└── launchd/                   # macOS service configs
 ```
 
-## 🚀 Quick Start
-
-### Option 1: GitHub Actions (Cloud)
-
-1. **Fork this repository**
-2. **Configure GitHub Secrets** (see [SETUP.md](./SETUP.md))
-3. **Enable GitHub Actions**
-4. Done! Scrapers will run automatically
-
-### Option 2: Local Mac Mini (Recommended)
-
-For reliable 5-minute intervals, run locally on macOS:
+## Local Setup (macOS)
 
 ```bash
-# 1. Clone the repository
+# Clone
 git clone git@github.com:lanxindeng8/ercot-scraper.git
 cd ercot-scraper
 
-# 2. Create virtual environment
+# Setup Python
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# 3. Configure environment
+# Configure
 cp .env.example .env
-# Edit .env with your InfluxDB credentials
+# Edit .env with your credentials
 
-# 4. Install launchd services
+# Install launchd services
 ./scripts/install_launchd.sh
 ```
 
-This will install two services:
-- **RTM LMP Scraper**: runs every 5 minutes
-- **DAM LMP Scraper**: runs every 15 minutes
+## launchd Services
 
-For detailed setup instructions, see [**SETUP.md**](./SETUP.md).
+| Service | Schedule |
+|---------|----------|
+| `com.trueflux.rtm-lmp-scraper` | Every 5 minutes |
+| `com.trueflux.dam-lmp-scraper` | Every 15 minutes |
 
-## 📋 Repository Structure
+### Commands
 
-```
-ercot-scraper/
-├── .github/
-│   └── workflows/
-│       ├── scraper-rtm-lmp.yml    # RTM LMP scraper (GitHub Actions)
-│       ├── scraper-dam-lmp.yml    # DAM LMP scraper (GitHub Actions)
-│       └── export-data.yml        # Data export workflow
-├── src/
-│   ├── ercot_client.py           # ERCOT API client
-│   ├── influxdb_writer.py        # InfluxDB writer
-│   ├── scraper_rtm_lmp.py        # RTM LMP scraper
-│   ├── scraper_dam_lmp.py        # DAM LMP scraper
-│   └── export_data.py            # Data export utility
-├── scripts/                      # Local deployment scripts
-│   ├── run_rtm_scraper.sh        # RTM run script
-│   ├── run_dam_scraper.sh        # DAM run script
-│   ├── install_launchd.sh        # macOS installer
-│   └── uninstall_launchd.sh      # macOS uninstaller
-├── launchd/                      # macOS launchd configs
-│   ├── com.trueflux.rtm-lmp-scraper.plist
-│   └── com.trueflux.dam-lmp-scraper.plist
-├── logs/                         # Runtime logs (created on install)
-├── README.md                     # This file
-├── SETUP.md                      # Setup guide
-├── USAGE.md                      # Usage guide
-├── PROJECT-STATUS.md             # Project status
-├── requirements.txt              # Python dependencies
-├── .env.example                  # Environment template
-└── .gitignore                    # Git ignore rules
+```bash
+# Check status
+launchctl list | grep trueflux
+
+# View logs
+tail -f logs/rtm_stdout.log
+tail -f logs/dam_stdout.log
+
+# Restart
+launchctl unload ~/Library/LaunchAgents/com.trueflux.rtm-lmp-scraper.plist
+launchctl load ~/Library/LaunchAgents/com.trueflux.rtm-lmp-scraper.plist
 ```
 
-## 📚 Documentation
+## SQLite Schema
 
-- [**SETUP.md**](./SETUP.md) - Setup and configuration guide
-- [**USAGE.md**](./USAGE.md) - Usage and monitoring guide
-- [**PROJECT-STATUS.md**](./PROJECT-STATUS.md) - Current project status
+```sql
+-- RTM LMP (5-min intervals)
+CREATE TABLE rtm_lmp_api (
+    time DATETIME NOT NULL,
+    settlement_point TEXT NOT NULL,
+    lmp REAL NOT NULL,
+    energy_component REAL,
+    congestion_component REAL,
+    loss_component REAL,
+    PRIMARY KEY (time, settlement_point)
+);
 
-## 💰 Cost
-
-**$0/month** - Completely free using:
-
-| Service | Free Tier | Usage |
-|---------|-----------|-------|
-| **GitHub Actions** | Unlimited (public repos) | ~4,320 min/month |
-| **InfluxDB Cloud** | 30-day retention | ~200 points/min |
-| **Total Cost** | **$0/month** | ✅ Within free limits |
-
-## 🔄 Migrated From AWS
-
-This project was migrated from AWS Lambda to GitHub Actions to eliminate costs.
-
-**Previous AWS costs**: ~$9-11/month
-- EC2 t3.micro: $8.21/month
-- EBS 8GB: $0.70/month
-- Secrets Manager: $0.40/month
-- Lambda, S3, EventBridge: Free tier
-
-**Cost savings**: $9-11/month → $0/month 💰
-
-Original infrastructure:
-- AWS Lambda (Node.js/TypeScript)
-- EventBridge (cron triggers)
-- AWS Secrets Manager
-- S3 (deployment packages)
-
-## 🛠️ Technology Stack
-
-- **Language**: Python 3.11
-- **API Client**: requests + urllib3
-- **Database**: InfluxDB Cloud (time series)
-- **Automation**: GitHub Actions
-- **Data Format**: CSV exports
-
-## 📊 Data Schema
-
-### LMP Node Zone Hub
-```
-Measurement: lmp_by_settlement_point
-Tags:
-  - settlement_point: string (e.g., HB_HOUSTON, LZ_WEST)
-  - settlement_point_type: string (Hub, Zone, Node)
-Fields:
-  - lmp: float ($/MWh)
-  - energy_component: float
-  - congestion_component: float
-  - loss_component: float
-Time: SCEDTimestamp (every ~5 minutes)
+-- DAM LMP (hourly)
+CREATE TABLE dam_lmp (
+    time DATETIME NOT NULL,
+    settlement_point TEXT NOT NULL,
+    settlement_point_type TEXT,
+    lmp REAL NOT NULL,
+    PRIMARY KEY (time, settlement_point)
+);
 ```
 
-### SPP Day Ahead Hourly
+## Environment Variables
+
+```bash
+# ERCOT API
+ERCOT_API_USERNAME=your_email@example.com
+ERCOT_API_PASSWORD=your_password
+ERCOT_PUBLIC_API_SUBSCRIPTION_KEY=your_key
+
+# InfluxDB
+INFLUXDB_URL=https://us-east-1-1.aws.cloud2.influxdata.com
+INFLUXDB_TOKEN=your_token
+INFLUXDB_ORG=your_org_id
+INFLUXDB_BUCKET=ercot
 ```
-Measurement: spp_day_ahead_hourly
-Tags:
-  - settlement_point: string
-  - settlement_point_type: string
-Fields:
-  - settlement_point_price: float ($/MWh)
-Time: DeliveryDate + HourEnding
-```
 
-## 🔐 Security
+## Cost
 
-- All credentials stored in GitHub Secrets (encrypted)
-- Secrets never appear in logs
-- Public repository safe (no sensitive data in code)
-- InfluxDB token has write-only permissions
+**$0/month** - Uses free tiers:
+- InfluxDB Cloud: 30-day retention
+- GitHub: Public repository
+- SQLite: Local storage
 
-## 📈 Monitoring
+## License
 
-View scraper status:
-1. Go to "Actions" tab
-2. Check recent workflow runs
-3. Green ✅ = success, Red ❌ = failed
-
-View data in InfluxDB:
-1. Log in to [InfluxDB Cloud](https://cloud2.influxdata.com)
-2. Go to "Data Explorer"
-3. Query your data
-
-## 🤝 Contributing
-
-Contributions welcome! Feel free to:
-- Report bugs
-- Suggest features
-- Submit pull requests
-
-## 📄 License
-
-MIT License - see [LICENSE](./LICENSE) for details
-
-## 👤 Author
-
-Migrated from AWS Lambda to GitHub Actions on 2026-01-22
-
-## 🙏 Acknowledgments
-
-- ERCOT for providing public API access
-- InfluxDB for free cloud tier
-- GitHub for free Actions on public repositories
-
----
-
-**Questions?** Check [SETUP.md](./SETUP.md) or [USAGE.md](./USAGE.md)
+MIT
