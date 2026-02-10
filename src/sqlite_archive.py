@@ -2,16 +2,21 @@
 SQLite Archive Writer
 
 Handles persistent storage of ERCOT LMP data in SQLite for historical analysis.
-Data older than 30 days is archived here before InfluxDB Cloud retention expires.
+Primary data store - all scraped data goes here.
 """
 
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 # Default database path
 DEFAULT_DB_PATH = Path(__file__).parent.parent / "data" / "ercot_archive.db"
+
+
+def create_archive_from_env() -> "SQLiteArchive":
+    """Create SQLite archive with default path"""
+    return SQLiteArchive()
 
 
 class SQLiteArchive:
@@ -240,3 +245,120 @@ class SQLiteArchive:
         if row[0]:
             return datetime.fromisoformat(row[0])
         return None
+
+    def write_rtm_lmp_raw(self, records: List[Dict[str, Any]]) -> int:
+        """
+        Write RTM LMP data from raw ERCOT API response to SQLite.
+        Handles field name mapping from ERCOT format.
+
+        Args:
+            records: List of raw ERCOT API records
+
+        Returns:
+            Number of records written/updated
+        """
+        if not records:
+            return 0
+
+        cursor = self.conn.cursor()
+        count = 0
+
+        for record in records:
+            try:
+                # Parse timestamp - try both possible field name formats
+                timestamp_str = record.get("SCEDTimestamp") or record.get("scedTimestamp")
+                if not timestamp_str:
+                    continue
+
+                timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+
+                # Floor timestamp to 5-minute interval
+                timestamp = timestamp.replace(second=0, microsecond=0)
+                minute = (timestamp.minute // 5) * 5
+                timestamp = timestamp.replace(minute=minute)
+
+                # Get field values - try both formats
+                settlement_point = record.get("SettlementPoint") or record.get("settlementPoint") or ""
+                lmp = record.get("LMP") or record.get("lmp") or 0
+                energy = record.get("EnergyComponent") or record.get("energyComponent") or 0
+                congestion = record.get("CongestionComponent") or record.get("congestionComponent") or 0
+                loss = record.get("LossComponent") or record.get("lossComponent") or 0
+
+                cursor.execute("""
+                INSERT OR REPLACE INTO rtm_lmp_api
+                (time, settlement_point, lmp, energy_component, congestion_component, loss_component)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    timestamp.isoformat(),
+                    settlement_point,
+                    float(lmp or 0),
+                    float(energy or 0),
+                    float(congestion or 0),
+                    float(loss or 0),
+                ))
+                count += 1
+            except Exception as e:
+                print(f"Error writing RTM API record: {e}")
+                continue
+
+        self.conn.commit()
+        return count
+
+    def write_dam_lmp_raw(self, records: List[Dict[str, Any]]) -> int:
+        """
+        Write DAM LMP data from raw ERCOT API response to SQLite.
+        Handles field name mapping from ERCOT format.
+
+        Args:
+            records: List of raw ERCOT API records
+
+        Returns:
+            Number of records written/updated
+        """
+        if not records:
+            return 0
+
+        cursor = self.conn.cursor()
+        count = 0
+
+        for record in records:
+            try:
+                # Parse delivery date and hour - try both possible field name formats
+                delivery_date = record.get("DeliveryDate") or record.get("deliveryDate")
+                hour_ending = record.get("HourEnding") or record.get("hourEnding")
+
+                if not delivery_date or not hour_ending:
+                    continue
+
+                # Construct timestamp (delivery date + hour) in Central Time, then convert to UTC
+                hour = int(hour_ending.split(":")[0])
+
+                # Create timestamp in Central Time
+                local_timestamp = datetime.fromisoformat(delivery_date)
+                local_timestamp = local_timestamp.replace(hour=hour - 1)
+
+                # Convert Central Time to UTC (CST = UTC-6)
+                timestamp = local_timestamp + timedelta(hours=6)
+
+                # Get settlement point fields - try both formats
+                settlement_point = record.get("SettlementPoint") or record.get("settlementPoint") or ""
+                settlement_point_type = record.get("SettlementPointType") or record.get("settlementPointType") or ""
+                price = record.get("SettlementPointPrice") or record.get("settlementPointPrice") or 0
+
+                cursor.execute("""
+                INSERT OR REPLACE INTO dam_lmp
+                (time, settlement_point, settlement_point_type, lmp)
+                VALUES (?, ?, ?, ?)
+                """, (
+                    timestamp.isoformat(),
+                    settlement_point,
+                    settlement_point_type,
+                    float(price or 0),
+                ))
+                count += 1
+            except Exception as e:
+                print(f"Error writing DAM record: {e}")
+                continue
+
+        self.conn.commit()
+        return count
