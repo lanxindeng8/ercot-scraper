@@ -13,6 +13,15 @@ from datetime import datetime, timezone, timedelta
 
 from cdr_scraper import create_cdr_scraper
 from influxdb_writer import create_writer_from_env
+from sqlite_archive import create_archive_from_env
+
+# Settlement points to write to InfluxDB (frontend needs only these)
+INFLUXDB_SETTLEMENT_POINTS = {
+    # Hubs
+    "HB_BUSAVG", "HB_HOUSTON", "HB_HUBAVG", "HB_NORTH", "HB_PAN", "HB_SOUTH", "HB_WEST",
+    # Load Zones
+    "LZ_AEN", "LZ_CPS", "LZ_HOUSTON", "LZ_LCRA", "LZ_NORTH", "LZ_RAYBN", "LZ_SOUTH", "LZ_WEST",
+}
 
 # Central Time offset (CST = UTC-6, CDT = UTC-5)
 # For simplicity, using CST. In production, use pytz for proper DST handling.
@@ -34,6 +43,9 @@ def main():
         # Initialize clients
         print("Initializing CDR scraper...")
         cdr = create_cdr_scraper()
+
+        print("Initializing SQLite archive...")
+        sqlite = create_archive_from_env()
 
         print("Initializing InfluxDB writer...")
         influxdb = create_writer_from_env()
@@ -68,13 +80,22 @@ def main():
                 print(f"Data already up to date. Last: {last_timestamp}, CDR: {utc_ts_aware}")
                 print("No new data to write.")
                 cdr.close()
+                sqlite.close()
                 influxdb.close()
                 return 0
 
-        # Transform records for InfluxDB writer
+        # Write ALL data to SQLite (primary storage)
+        sqlite_written = sqlite.write_rtm_lmp_cdr_raw(utc_timestamp, records)
+        print(f"Wrote {sqlite_written} records to SQLite rtm_lmp_cdr")
+
+        # Filter records for InfluxDB (only 15 settlement points for frontend)
+        filtered_records = [r for r in records if r.get("settlementPoint", "") in INFLUXDB_SETTLEMENT_POINTS]
+        print(f"Filtered {len(filtered_records)} of {len(records)} records for InfluxDB")
+
+        # Transform filtered records for InfluxDB writer
         # The writer expects records with SCEDTimestamp field
         influx_records = []
-        for record in records:
+        for record in filtered_records:
             influx_records.append({
                 "SCEDTimestamp": utc_timestamp.strftime("%Y-%m-%dT%H:%M:%S"),
                 "SettlementPoint": record["settlementPoint"],
@@ -83,10 +104,11 @@ def main():
 
         # Write to rtm_lmp_realtime measurement (CDR data)
         points_written = influxdb.write_rtm_lmp_realtime(influx_records)
-        print(f"Wrote {points_written} points to rtm_lmp_realtime")
+        print(f"Wrote {points_written} points to InfluxDB rtm_lmp_realtime")
 
         # Close connections
         cdr.close()
+        sqlite.close()
         influxdb.close()
 
         print(f"Completed! Real-time data timestamp: {cst_timestamp} CST ({utc_timestamp} UTC)")

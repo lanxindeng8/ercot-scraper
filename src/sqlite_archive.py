@@ -304,6 +304,45 @@ class SQLiteArchive:
         self.conn.commit()
         return count
 
+    def write_rtm_lmp_cdr_raw(self, timestamp: datetime, records: List[Dict[str, Any]]) -> int:
+        """
+        Write RTM LMP data from CDR scraper to SQLite.
+        Handles CDR format with separate timestamp.
+
+        Args:
+            timestamp: UTC timestamp for all records
+            records: List of CDR records with keys: settlementPoint, lmp
+
+        Returns:
+            Number of records written/updated
+        """
+        if not records:
+            return 0
+
+        cursor = self.conn.cursor()
+        count = 0
+
+        for record in records:
+            try:
+                settlement_point = record.get("settlementPoint") or ""
+                lmp = record.get("lmp") or 0
+
+                cursor.execute("""
+                INSERT OR REPLACE INTO rtm_lmp_cdr (time, settlement_point, lmp)
+                VALUES (?, ?, ?)
+                """, (
+                    timestamp.isoformat(),
+                    settlement_point,
+                    float(lmp or 0),
+                ))
+                count += 1
+            except Exception as e:
+                print(f"Error writing RTM CDR record: {e}")
+                continue
+
+        self.conn.commit()
+        return count
+
     def write_dam_lmp_raw(self, records: List[Dict[str, Any]]) -> int:
         """
         Write DAM LMP data from raw ERCOT API response to SQLite.
