@@ -28,7 +28,7 @@ ERCOT API → Scraper → SQLite (all data, primary storage)
 | Scraper | API Endpoint | Frequency | Data |
 |---------|--------------|-----------|------|
 | RTM LMP | `/np6-788-cd/lmp_node_zone_hub` | Every 5 min | Real-time prices |
-| DAM LMP | `/np4-190-cd/dam_stlmnt_pnt_prices` | Every 15 min | Day-ahead prices |
+| DAM LMP | `/np4-190-cd/dam_stlmnt_pnt_prices` | Daily 2:15 PM | Day-ahead prices |
 
 ## Repository Structure
 
@@ -45,7 +45,6 @@ ercot-scraper/
 ├── scripts/
 │   ├── run_rtm_scraper.sh     # RTM launcher
 │   ├── run_dam_scraper.sh     # DAM launcher
-│   ├── backfill_rtm_api.py    # Manual backfill
 │   ├── download_historical.py # Download historical data
 │   └── fetch_dam_to_csv.py    # Export to CSV
 ├── historical_data/           # Historical data files
@@ -53,8 +52,7 @@ ercot-scraper/
 │   └── raw/                   # Raw ERCOT zip files
 ├── data/
 │   └── ercot_archive.db       # SQLite database
-├── logs/                      # Runtime logs
-└── launchd/                   # macOS service configs
+└── logs/                      # Runtime logs
 ```
 
 ## Local Setup (macOS)
@@ -72,9 +70,6 @@ pip install -r requirements.txt
 # Configure
 cp .env.example .env
 # Edit .env with your credentials
-
-# Install launchd services
-./scripts/install_launchd.sh
 ```
 
 ## launchd Services
@@ -82,7 +77,7 @@ cp .env.example .env
 | Service | Schedule | Description |
 |---------|----------|-------------|
 | `com.trueflux.rtm-lmp-scraper` | Every 5 min | Runs API scraper (backfill) + CDR scraper (real-time) |
-| `com.trueflux.dam-lmp-scraper` | Daily 3 PM | Day-ahead market prices (published ~1-2 PM) |
+| `com.trueflux.dam-lmp-scraper` | Daily 2:15 PM | Day-ahead market prices (published ~1-2 PM) |
 
 ### Commands
 
